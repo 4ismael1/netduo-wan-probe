@@ -46,9 +46,9 @@ function parseProfile(raw: string | undefined): ScanProfile {
 }
 
 function parseLanguage(raw: string | undefined, fallback: ProbeLanguage): ProbeLanguage {
-    const value = String(raw || '').trim().toLowerCase()
-    if (value === 'en' || value === 'es') return value
-    return fallback
+    void raw
+    void fallback
+    return 'en'
 }
 
 function buildDeepPortsDefault(): number[] {
@@ -341,7 +341,7 @@ export function loadConfig(): ProbeConfig {
         enableHttpProbe: toBool(process.env.PROBE_ENABLE_HTTP_PROBE, true),
         enableTlsProbe: toBool(process.env.PROBE_ENABLE_TLS_PROBE, true),
         enableBannerProbe: toBool(process.env.PROBE_ENABLE_BANNER_PROBE, true),
-        defaultLanguage: parseLanguage(process.env.PROBE_DEFAULT_LANGUAGE, 'en'),
+        defaultLanguage: 'en',
         nodeId: process.env.PROBE_NODE_ID?.trim() || null,
         nodeLabel: process.env.PROBE_NODE_LABEL?.trim() || null,
         nodeProvider: process.env.PROBE_NODE_PROVIDER?.trim() || null,

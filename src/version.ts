@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 
-export const PROBE_API_VERSION = 'v1.3.0'
+export const PROBE_API_VERSION = 'v1.4.0'
 // Backward-compatible alias used by existing NetDuo clients.
 export const PROBE_API_REVISION = PROBE_API_VERSION
 export const PROBE_FEATURE_FLAGS = [
@@ -10,7 +10,7 @@ export const PROBE_FEATURE_FLAGS = [
     'dual-transport-scan',
     'transport-strict-validation',
     'multi-probe-ready',
-    'localized-findings',
+    'english-only-output',
 ] as const
 
 function readPackageVersion(rootDir: string): string {

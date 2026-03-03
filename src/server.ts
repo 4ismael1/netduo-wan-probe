@@ -48,9 +48,9 @@ function parseTransport(raw: string | undefined, fallback: ScanTransport): ScanT
 }
 
 function parseLanguage(raw: string | undefined, fallback: ProbeLanguage): ProbeLanguage {
-    const value = String(raw || '').trim().toLowerCase()
-    if (value === 'es' || value === 'en') return value
-    return fallback
+    void raw
+    void fallback
+    return 'en'
 }
 
 function resolveTransport(requested: ScanTransport): ScanTransport {
@@ -142,8 +142,8 @@ export async function buildServer(cfg: ProbeConfig) {
         ...versionInfo,
         capabilities: {
             localization: {
-                default: cfg.defaultLanguage,
-                supported: ['en', 'es'],
+                default: 'en',
+                supported: ['en'],
             },
             transport: {
                 tcp: true,
@@ -189,7 +189,7 @@ export async function buildServer(cfg: ProbeConfig) {
                 mode: 'quick',
                 profile: cfg.profileDefault,
                 transport: cfg.scanTransportDefault,
-                language: cfg.defaultLanguage,
+                language: 'en',
             },
             quickPorts: cfg.quickPorts,
             advancedPorts: cfg.advancedPorts,
@@ -228,7 +228,7 @@ export async function buildServer(cfg: ProbeConfig) {
                     mode: { type: 'string', enum: ['quick', 'advanced', 'deep'] },
                     profile: { type: 'string', enum: ['safe', 'balanced', 'aggressive'] },
                     transport: { type: 'string', enum: ['tcp', 'udp', 'both', 'auto'] },
-                    language: { type: 'string', enum: ['en', 'es'] },
+                    language: { type: 'string', enum: ['en'] },
                     target: { type: 'string' },
                     ports: {
                         type: 'array',

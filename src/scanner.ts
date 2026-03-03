@@ -717,7 +717,7 @@ function addFinding(findings: Finding[], finding: Finding) {
     findings.push(finding)
 }
 
-function summarizePorts(ports: number[], max = 8, language: ProbeLanguage = 'es'): string {
+function summarizePorts(ports: number[], max = 8, language: ProbeLanguage = 'en'): string {
     if (!ports.length) return language === 'es' ? 'ninguno' : 'none'
     const shown = ports.slice(0, max).join(', ')
     if (ports.length <= max) return shown
@@ -1137,8 +1137,7 @@ function computeConfidenceScore(
 
 export async function performWanScan(input: PerformWanScanInput): Promise<WanScanResult> {
     const { mode, profile, transport, target, observedIp, tcpPorts, udpPorts, cfg, onProgress } = input
-    const defaultLanguage: ProbeLanguage = cfg.defaultLanguage === 'es' ? 'es' : 'en'
-    const language: ProbeLanguage = input.language === 'es' || input.language === 'en' ? input.language : defaultLanguage
+    const language: ProbeLanguage = 'en'
     const includeTcp = transport === 'tcp' || transport === 'both'
     const includeUdp = transport === 'udp' || transport === 'both'
     const tcpRuntime = runtimeForModeTransport(mode, profile, 'tcp', cfg)

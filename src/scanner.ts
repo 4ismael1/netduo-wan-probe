@@ -15,6 +15,7 @@ import type {
     HttpProbeResult,
     PortScanResult,
     PortState,
+    ProbeLanguage,
     ScanMode,
     ScanPhase,
     ScanProfile,
@@ -33,6 +34,7 @@ export interface PerformWanScanInput {
     tcpPorts: number[]
     udpPorts: number[]
     cfg: ProbeConfig
+    language?: ProbeLanguage
     onProgress?: (progress: ScanProgress) => void
 }
 
@@ -715,14 +717,128 @@ function addFinding(findings: Finding[], finding: Finding) {
     findings.push(finding)
 }
 
-function summarizePorts(ports: number[], max = 8): string {
-    if (!ports.length) return 'none'
+function summarizePorts(ports: number[], max = 8, language: ProbeLanguage = 'es'): string {
+    if (!ports.length) return language === 'es' ? 'ninguno' : 'none'
     const shown = ports.slice(0, max).join(', ')
     if (ports.length <= max) return shown
     return `${shown} (+${ports.length - max})`
 }
 
-function buildFindings(results: PortScanResult[]): Finding[] {
+const ES_TO_EN_REPLACEMENTS: Array<[RegExp, string]> = [
+    [/Docker Remote API sin TLS expuest[ao]/gi, 'Docker Remote API exposed without TLS'],
+    [/Servicios de base de datos visibles desde Internet/gi, 'Database services exposed to the internet'],
+    [/SNMP expuesto por UDP en WAN/gi, 'SNMP exposed over UDP on WAN'],
+    [/DNS UDP expuesto en WAN/gi, 'DNS over UDP exposed on WAN'],
+    [/SSDP\/UPnP visible por UDP en WAN/gi, 'SSDP/UPnP exposed over UDP on WAN'],
+    [/TFTP expuesto por UDP en WAN/gi, 'TFTP exposed over UDP on WAN'],
+    [/Protocolos legacy\/inseguros expuestos/gi, 'Legacy/insecure protocols exposed'],
+    [/Superficie de administracion remota visible/gi, 'Remote administration surface visible'],
+    [/Superficie UDP administrativa visible/gi, 'UDP administrative surface visible'],
+    [/Interfaz web de administracion detectada en WAN/gi, 'Administrative web interface detected on WAN'],
+    [/Configuracion TLS debil o certificado no confiable/gi, 'Weak TLS configuration or untrusted certificate'],
+    [/Superficie WAN extensa/gi, 'Broad WAN attack surface'],
+    [/Varios puertos UDP quedaron en estado indeterminado/gi, 'Multiple UDP ports remained indeterminate'],
+    [/No se detectaron puertos abiertos en el set escaneado/gi, 'No open ports detected in scanned set'],
+    [/Puerto 2375 abierto en (.+)\./gi, 'Port 2375 is open on $1.'],
+    [/Puertos detectados: (.+)\./gi, 'Detected ports: $1.'],
+    [/SNMP detectado en: (.+)\./gi, 'SNMP detected on: $1.'],
+    [/UDP\/53 abierto en: (.+)\./gi, 'UDP/53 is open on: $1.'],
+    [/UDP\/1900 abierto en: (.+)\./gi, 'UDP/1900 is open on: $1.'],
+    [/UDP\/69 abierto en: (.+)\./gi, 'UDP/69 is open on: $1.'],
+    [/Puertos legacy abiertos: (.+)\./gi, 'Open legacy ports: $1.'],
+    [/Puertos administrativos abiertos: (.+)\./gi, 'Open administrative ports: $1.'],
+    [/Servicios UDP sensibles abiertos: (.+)\./gi, 'Open sensitive UDP services: $1.'],
+    [/Admin\/login identificado en puertos: (.+)\./gi, 'Admin/login surface identified on ports: $1.'],
+    [/Servicios con cert auto-firmado\/expirado en: (.+)\./gi, 'Services with self-signed/expired certs on: $1.'],
+    [/(\d+)\s+puertos abiertos detectados \(TCP:\s*(\d+), UDP:\s*(\d+)\)\./gi, '$1 open ports detected (TCP: $2, UDP: $3).'],
+    [/(\d+)\s+puertos UDP sin respuesta \(open\|filtered\)\./gi, '$1 UDP ports without response (open|filtered).'],
+    [/Todos los puertos del escaneo respondieron como cerrados o filtrados\./gi, 'All scanned ports responded as closed or filtered.'],
+    [/Deshabilita 2375 en WAN o fuerza TLS mutuo en 2376 con ACL estricta\./gi, 'Disable port 2375 on WAN or enforce mutual TLS on 2376 with strict ACLs.'],
+    [/Restringe acceso por firewall y expone BD solo por VPN o red privada\./gi, 'Restrict access with firewall rules and expose databases only through VPN or private network.'],
+    [/Bloquea SNMP en WAN o limita por ACL estricta y credenciales robustas\./gi, 'Block SNMP on WAN or restrict it with strict ACLs and strong credentials.'],
+    [/Restringe recursion y permite consultas solo desde rangos autorizados\./gi, 'Restrict recursion and allow queries only from authorized ranges.'],
+    [/Desactiva UPnP WAN y limita discovery solo a la red local\./gi, 'Disable WAN UPnP and limit discovery to the local network.'],
+    [/Deshabilita TFTP en Internet o migra a protocolo cifrado y autenticado\./gi, 'Disable internet-exposed TFTP or migrate to encrypted, authenticated protocols.'],
+    [/Deshabilita servicios legacy y migra a alternativas cifradas \(SSH\/TLS\/VPN\)\./gi, 'Disable legacy services and migrate to encrypted alternatives (SSH/TLS/VPN).'],
+    [/Limita administracion remota a VPN\/IPs permitidas y activa MFA cuando exista\./gi, 'Restrict remote administration to VPN/allowlisted IPs and enable MFA when available.'],
+    [/Limita servicios UDP de gestion a VPN o listas de IP permitidas\./gi, 'Restrict UDP management services to VPN or IP allowlists.'],
+    [/Desactiva admin WAN o protege con VPN y listas de acceso\./gi, 'Disable WAN admin or protect it with VPN and access allowlists.'],
+    [/Renueva certificados, evita self-signed en produccion y revisa cadena TLS\./gi, 'Renew certificates, avoid self-signed certs in production, and validate TLS chain.'],
+    [/Reduce la exposicion: cierra puertos no necesarios y segmenta servicios\./gi, 'Reduce exposure: close unnecessary ports and segment services.'],
+    [/Correlaciona con firewall del objetivo y repite UDP con timeout mayor si es necesario\./gi, 'Correlate with target firewall behavior and repeat UDP with higher timeout when required.'],
+    [/Mantener politica de minimo privilegio y repetir escaneo periodico\./gi, 'Maintain least-privilege policy and repeat scans periodically.'],
+    [/Control remoto de contenedores y potencial ejecucion de codigo\./gi, 'Remote container control and potential code execution.'],
+    [/Filtracion o manipulacion de datos ante credenciales debiles o fugadas\./gi, 'Potential data leakage or manipulation when credentials are weak or leaked.'],
+    [/Posible fuga de informacion sensible de red y dispositivos\./gi, 'Possible leakage of sensitive network and device information.'],
+    [/Riesgo de abuso para amplificacion o recursion no autorizada\./gi, 'Risk of abuse for amplification or unauthorized recursion.'],
+    [/Mayor superficie para abuso de discovery\/amplificacion\./gi, 'Expanded surface for discovery/amplification abuse.'],
+    [/Transferencias sin cifrado ni autenticacion robusta\./gi, 'Transfers without encryption or strong authentication.'],
+    [/Riesgo alto de sniffing, bruteforce y explotacion de servicios antiguos\./gi, 'High risk of sniffing, brute-force and exploitation of legacy services.'],
+    [/Mayor probabilidad de acceso no autorizado y ataques de fuerza bruta\./gi, 'Higher probability of unauthorized access and brute-force attacks.'],
+    [/Aumento de superficie para ataque de servicios no orientados a Internet\./gi, 'Expanded attack surface for services not meant for internet exposure.'],
+    [/Ataques de credenciales y explotacion de paneles de administracion\./gi, 'Credential attacks and exploitation of admin panels.'],
+    [/Riesgo de MITM o advertencias que degradan seguridad operacional\./gi, 'MITM risk or warnings that degrade operational security.'],
+    [/Incremento de superficie de ataque y probabilidad de compromiso\./gi, 'Increased attack surface and compromise probability.'],
+    [/El comportamiento UDP puede ocultar servicios tras filtrado silencioso\./gi, 'UDP behavior can hide services behind silent filtering.'],
+    [/Postura WAN reducida para los puertos analizados\./gi, 'Reduced WAN exposure posture for scanned ports.'],
+]
+
+function translateEsToEn(text: string): string {
+    let out = text
+    for (const [pattern, replacement] of ES_TO_EN_REPLACEMENTS) {
+        out = out.replace(pattern, replacement)
+    }
+    return out.replace(/\s{2,}/g, ' ').trim()
+}
+
+function localizeFindingText(text: string, language: ProbeLanguage): string {
+    if (language === 'es') return text
+    return translateEsToEn(text)
+}
+
+function localizeFinding(finding: Finding, language: ProbeLanguage): Finding {
+    if (language === 'es') return finding
+    return {
+        ...finding,
+        title: localizeFindingText(finding.title, language),
+        evidence: localizeFindingText(finding.evidence, language),
+        recommendation: localizeFindingText(finding.recommendation, language),
+        impact: localizeFindingText(finding.impact, language),
+    }
+}
+
+function progressMessage(
+    language: ProbeLanguage,
+    key: 'queued' | 'prepare' | 'tcp-running' | 'tcp-progress' | 'udp-running' | 'udp-progress' | 'service-running' | 'service-progress' | 'analysis' | 'done',
+    context: { done?: number; total?: number } = {},
+): string {
+    const done = context.done ?? 0
+    const total = context.total ?? 0
+    if (language === 'es') {
+        if (key === 'queued') return 'Scan en cola'
+        if (key === 'prepare') return 'Preparando escaneo WAN'
+        if (key === 'tcp-running') return 'Escaneo TCP en progreso'
+        if (key === 'tcp-progress') return `Escaneo TCP ${done}/${total}`
+        if (key === 'udp-running') return 'Escaneo UDP en progreso'
+        if (key === 'udp-progress') return `Escaneo UDP ${done}/${total}`
+        if (key === 'service-running') return 'Analizando servicios detectados'
+        if (key === 'service-progress') return `Fingerprint de servicios ${done}/${total}`
+        if (key === 'analysis') return 'Correlacionando evidencias y riesgo'
+        return 'Escaneo completado'
+    }
+    if (key === 'queued') return 'Scan queued'
+    if (key === 'prepare') return 'Preparing WAN scan'
+    if (key === 'tcp-running') return 'TCP sweep in progress'
+    if (key === 'tcp-progress') return `TCP sweep ${done}/${total}`
+    if (key === 'udp-running') return 'UDP sweep in progress'
+    if (key === 'udp-progress') return `UDP sweep ${done}/${total}`
+    if (key === 'service-running') return 'Analyzing discovered services'
+    if (key === 'service-progress') return `Service fingerprinting ${done}/${total}`
+    if (key === 'analysis') return 'Correlating evidence and risk'
+    return 'Scan completed'
+}
+
+function buildFindings(results: PortScanResult[], language: ProbeLanguage): Finding[] {
     const findings: Finding[] = []
     const open = results.filter(r => r.state === 'open')
     const openTcp = open.filter(r => r.protocol === 'tcp')
@@ -955,7 +1071,7 @@ function buildFindings(results: PortScanResult[]): Finding[] {
         })
     }
 
-    return findings
+    return findings.map(finding => localizeFinding(finding, language))
 }
 
 function computeRiskScore(findings: Finding[], openCount: number): number {
@@ -1021,6 +1137,8 @@ function computeConfidenceScore(
 
 export async function performWanScan(input: PerformWanScanInput): Promise<WanScanResult> {
     const { mode, profile, transport, target, observedIp, tcpPorts, udpPorts, cfg, onProgress } = input
+    const defaultLanguage: ProbeLanguage = cfg.defaultLanguage === 'es' ? 'es' : 'en'
+    const language: ProbeLanguage = input.language === 'es' || input.language === 'en' ? input.language : defaultLanguage
     const includeTcp = transport === 'tcp' || transport === 'both'
     const includeUdp = transport === 'udp' || transport === 'both'
     const tcpRuntime = runtimeForModeTransport(mode, profile, 'tcp', cfg)
@@ -1048,7 +1166,8 @@ export async function performWanScan(input: PerformWanScanInput): Promise<WanSca
 
     const progress: ScanProgress = {
         phase: 'queued',
-        message: 'Scan en cola',
+        message: progressMessage(language, 'queued'),
+        language,
         transport,
         totalPorts,
         scannedPorts: 0,
@@ -1094,7 +1213,7 @@ export async function performWanScan(input: PerformWanScanInput): Promise<WanSca
         onProgress?.({ ...progress })
     }
 
-    emitProgress('queued', 'Preparando escaneo WAN', { percent: 1 })
+    emitProgress('queued', progressMessage(language, 'prepare'), { percent: 1 })
 
     let scannedPorts = 0
     let openPorts = 0
@@ -1111,7 +1230,7 @@ export async function performWanScan(input: PerformWanScanInput): Promise<WanSca
 
     let tcpResults: PortScanResult[] = []
     if (includeTcp && normalizedTcpPorts.length) {
-        emitProgress('tcp_sweep', 'Escaneo TCP en progreso', { percent: startPercent })
+        emitProgress('tcp_sweep', progressMessage(language, 'tcp-running'), { percent: startPercent })
         tcpResults = await runWithConcurrency(normalizedTcpPorts, tcpRuntime.concurrency, async port => {
             const result = await probeTcpPort(target, port, tcpRetries, tcpRuntime.timeoutMs)
             scannedPorts += 1
@@ -1131,7 +1250,7 @@ export async function performWanScan(input: PerformWanScanInput): Promise<WanSca
                 ? startPercent + ((scannedTcpPorts / normalizedTcpPorts.length) * progressBudget.tcp)
                 : startPercent + progressBudget.tcp
 
-            emitProgress('tcp_sweep', `Escaneo TCP ${scannedTcpPorts}/${normalizedTcpPorts.length}`, {
+            emitProgress('tcp_sweep', progressMessage(language, 'tcp-progress', { done: scannedTcpPorts, total: normalizedTcpPorts.length }), {
                 scannedPorts,
                 openPorts,
                 closedPorts,
@@ -1153,7 +1272,7 @@ export async function performWanScan(input: PerformWanScanInput): Promise<WanSca
 
     let udpResults: PortScanResult[] = []
     if (includeUdp && normalizedUdpPorts.length) {
-        emitProgress('udp_sweep', 'Escaneo UDP en progreso', {
+        emitProgress('udp_sweep', progressMessage(language, 'udp-running'), {
             percent: startPercent + progressBudget.tcp,
         })
         udpResults = await runWithConcurrency(normalizedUdpPorts, udpRuntime.concurrency, async port => {
@@ -1175,7 +1294,7 @@ export async function performWanScan(input: PerformWanScanInput): Promise<WanSca
                 ? startPercent + progressBudget.tcp + ((scannedUdpPorts / normalizedUdpPorts.length) * progressBudget.udp)
                 : startPercent + progressBudget.tcp + progressBudget.udp
 
-            emitProgress('udp_sweep', `Escaneo UDP ${scannedUdpPorts}/${normalizedUdpPorts.length}`, {
+            emitProgress('udp_sweep', progressMessage(language, 'udp-progress', { done: scannedUdpPorts, total: normalizedUdpPorts.length }), {
                 scannedPorts,
                 openPorts,
                 closedPorts,
@@ -1200,7 +1319,7 @@ export async function performWanScan(input: PerformWanScanInput): Promise<WanSca
     let servicePortsScanned = 0
 
     if (serviceProbeEnabled && openTcpResults.length) {
-        emitProgress('service_probe', 'Analizando servicios detectados', {
+        emitProgress('service_probe', progressMessage(language, 'service-running'), {
             percent: percentBeforeService,
             servicePortsScanned: 0,
         })
@@ -1220,7 +1339,7 @@ export async function performWanScan(input: PerformWanScanInput): Promise<WanSca
 
             servicePortsScanned += 1
             const percent = percentBeforeService + ((servicePortsScanned / openTcpResults.length) * progressBudget.service)
-            emitProgress('service_probe', `Fingerprint de servicios ${servicePortsScanned}/${openTcpResults.length}`, {
+            emitProgress('service_probe', progressMessage(language, 'service-progress', { done: servicePortsScanned, total: openTcpResults.length }), {
                 scannedPorts,
                 openPorts,
                 closedPorts,
@@ -1240,10 +1359,10 @@ export async function performWanScan(input: PerformWanScanInput): Promise<WanSca
         })
     }
 
-    emitProgress('analysis', 'Correlacionando evidencias y riesgo', { percent: 92 })
+    emitProgress('analysis', progressMessage(language, 'analysis'), { percent: 92 })
     const allResults = [...tcpResults, ...udpResults]
         .sort((a, b) => (a.port - b.port) || a.protocol.localeCompare(b.protocol))
-    const findings = buildFindings(allResults)
+    const findings = buildFindings(allResults, language)
     const riskScore = computeRiskScore(findings, openPorts)
     const confidenceScore = computeConfidenceScore(
         mode,
@@ -1261,6 +1380,7 @@ export async function performWanScan(input: PerformWanScanInput): Promise<WanSca
         mode,
         profile,
         transport,
+        language,
         target,
         observedIp,
         startedAt: startedAt.toISOString(),
@@ -1303,7 +1423,7 @@ export async function performWanScan(input: PerformWanScanInput): Promise<WanSca
         },
     }
 
-    emitProgress('done', 'Escaneo completado', {
+    emitProgress('done', progressMessage(language, 'done'), {
         percent: 100,
         scannedPorts,
         openPorts,

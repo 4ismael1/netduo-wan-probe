@@ -7,7 +7,7 @@ import { JobStore } from './jobStore'
 import { type ProbeConfig } from './config'
 import { isPublicIPv4, performWanScan } from './scanner'
 import { resolveNodeMetadata } from './nodeMetadata'
-import type { ScanMode, ScanProfile, ScanTransport } from './types'
+import type { ProbeLanguage, ScanMode, ScanProfile, ScanTransport } from './types'
 import { resolveRuntimeVersionInfo } from './version'
 
 function getBearerToken(req: FastifyRequest): string | null {
@@ -44,6 +44,12 @@ function parseProfile(raw: string | undefined, fallback: ScanProfile): ScanProfi
 function parseTransport(raw: string | undefined, fallback: ScanTransport): ScanTransport {
     const value = String(raw || '').trim().toLowerCase()
     if (value === 'tcp' || value === 'udp' || value === 'both' || value === 'auto') return value
+    return fallback
+}
+
+function parseLanguage(raw: string | undefined, fallback: ProbeLanguage): ProbeLanguage {
+    const value = String(raw || '').trim().toLowerCase()
+    if (value === 'es' || value === 'en') return value
     return fallback
 }
 
@@ -135,6 +141,10 @@ export async function buildServer(cfg: ProbeConfig) {
         time: new Date().toISOString(),
         ...versionInfo,
         capabilities: {
+            localization: {
+                default: cfg.defaultLanguage,
+                supported: ['en', 'es'],
+            },
             transport: {
                 tcp: true,
                 udp: cfg.enableUdpScan,
@@ -179,6 +189,7 @@ export async function buildServer(cfg: ProbeConfig) {
                 mode: 'quick',
                 profile: cfg.profileDefault,
                 transport: cfg.scanTransportDefault,
+                language: cfg.defaultLanguage,
             },
             quickPorts: cfg.quickPorts,
             advancedPorts: cfg.advancedPorts,
@@ -217,6 +228,7 @@ export async function buildServer(cfg: ProbeConfig) {
                     mode: { type: 'string', enum: ['quick', 'advanced', 'deep'] },
                     profile: { type: 'string', enum: ['safe', 'balanced', 'aggressive'] },
                     transport: { type: 'string', enum: ['tcp', 'udp', 'both', 'auto'] },
+                    language: { type: 'string', enum: ['en', 'es'] },
                     target: { type: 'string' },
                     ports: {
                         type: 'array',
@@ -253,6 +265,7 @@ export async function buildServer(cfg: ProbeConfig) {
             mode?: string
             profile?: string
             transport?: string
+            language?: string
             target?: string
             ports?: number[]
             udpPorts?: number[]
@@ -263,6 +276,7 @@ export async function buildServer(cfg: ProbeConfig) {
         const mode = parseMode(body.mode)
         const profile = parseProfile(body.profile, cfg.profileDefault)
         const requestedTransport = parseTransport(body.transport, cfg.scanTransportDefault)
+        const language = parseLanguage(body.language, cfg.defaultLanguage)
         if (!cfg.enableUdpScan && (requestedTransport === 'udp' || requestedTransport === 'both')) {
             return reply.code(400).send({
                 ok: false,
@@ -353,6 +367,7 @@ export async function buildServer(cfg: ProbeConfig) {
             mode,
             profile,
             transport,
+            language,
             target,
             observedIp,
             ports,
@@ -367,6 +382,7 @@ export async function buildServer(cfg: ProbeConfig) {
                     mode,
                     profile,
                     transport,
+                    language,
                     target,
                     observedIp,
                     tcpPorts,
@@ -391,6 +407,7 @@ export async function buildServer(cfg: ProbeConfig) {
             mode,
             profile,
             transport,
+            language,
             target,
             observedIp,
             ports,

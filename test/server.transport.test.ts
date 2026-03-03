@@ -55,6 +55,7 @@ function baseCfg(overrides: Partial<ProbeConfig> = {}): ProbeConfig {
         enableHttpProbe: false,
         enableTlsProbe: false,
         enableBannerProbe: false,
+        defaultLanguage: 'en',
         nodeId: 'test-node',
         nodeLabel: 'Test Node',
         nodeProvider: 'Test',

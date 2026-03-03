@@ -1,4 +1,4 @@
-import type { ScanMode, ScanProfile, ScanTransport } from './types'
+import type { ProbeLanguage, ScanMode, ScanProfile, ScanTransport } from './types'
 
 function toInt(value: string | undefined, fallback: number) {
     if (!value) return fallback
@@ -43,6 +43,12 @@ function parseProfile(raw: string | undefined): ScanProfile {
     const value = String(raw || '').trim().toLowerCase()
     if (value === 'safe' || value === 'aggressive' || value === 'balanced') return value
     return 'balanced'
+}
+
+function parseLanguage(raw: string | undefined, fallback: ProbeLanguage): ProbeLanguage {
+    const value = String(raw || '').trim().toLowerCase()
+    if (value === 'en' || value === 'es') return value
+    return fallback
 }
 
 function buildDeepPortsDefault(): number[] {
@@ -266,6 +272,7 @@ export interface ProbeConfig {
     enableHttpProbe: boolean
     enableTlsProbe: boolean
     enableBannerProbe: boolean
+    defaultLanguage: ProbeLanguage
     nodeId: string | null
     nodeLabel: string | null
     nodeProvider: string | null
@@ -334,6 +341,7 @@ export function loadConfig(): ProbeConfig {
         enableHttpProbe: toBool(process.env.PROBE_ENABLE_HTTP_PROBE, true),
         enableTlsProbe: toBool(process.env.PROBE_ENABLE_TLS_PROBE, true),
         enableBannerProbe: toBool(process.env.PROBE_ENABLE_BANNER_PROBE, true),
+        defaultLanguage: parseLanguage(process.env.PROBE_DEFAULT_LANGUAGE, 'en'),
         nodeId: process.env.PROBE_NODE_ID?.trim() || null,
         nodeLabel: process.env.PROBE_NODE_LABEL?.trim() || null,
         nodeProvider: process.env.PROBE_NODE_PROVIDER?.trim() || null,
@@ -446,4 +454,3 @@ export function retriesForModeTransport(
 export function retriesForMode(mode: ScanMode, profile: ScanProfile, cfg: ProbeConfig): number {
     return retriesForModeTransport(mode, profile, 'tcp', cfg)
 }
-

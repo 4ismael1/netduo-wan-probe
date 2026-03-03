@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import type { ScanJob, ScanMode, ScanProfile, ScanProgress, ScanTransport, WanScanResult } from './types'
+import type { ProbeLanguage, ScanJob, ScanMode, ScanProfile, ScanProgress, ScanTransport, WanScanResult } from './types'
 
 export class JobStore {
     private jobs = new Map<string, ScanJob>()
@@ -9,11 +9,31 @@ export class JobStore {
         private readonly maxJobs: number,
     ) {}
 
-    private buildInitialProgress(totalPorts: number, totalTcpPorts: number, totalUdpPorts: number, transport: ScanTransport): ScanProgress {
+    private progressMessage(language: ProbeLanguage, key: 'queued' | 'tcp' | 'udp' | 'done'): string {
+        if (language === 'es') {
+            if (key === 'queued') return 'Scan en cola'
+            if (key === 'tcp') return 'Escaneo TCP en progreso'
+            if (key === 'udp') return 'Escaneo UDP en progreso'
+            return 'Escaneo completado'
+        }
+        if (key === 'queued') return 'Scan queued'
+        if (key === 'tcp') return 'TCP sweep in progress'
+        if (key === 'udp') return 'UDP sweep in progress'
+        return 'Scan completed'
+    }
+
+    private buildInitialProgress(
+        totalPorts: number,
+        totalTcpPorts: number,
+        totalUdpPorts: number,
+        transport: ScanTransport,
+        language: ProbeLanguage,
+    ): ScanProgress {
         const now = new Date().toISOString()
         return {
             phase: 'queued',
-            message: 'Scan en cola',
+            message: this.progressMessage(language, 'queued'),
+            language,
             transport,
             totalPorts,
             scannedPorts: 0,
@@ -41,6 +61,7 @@ export class JobStore {
         mode: ScanMode
         profile: ScanProfile
         transport: ScanTransport
+        language: ProbeLanguage
         target: string
         observedIp: string
         ports: number[]
@@ -57,12 +78,13 @@ export class JobStore {
             mode: input.mode,
             profile: input.profile,
             transport: input.transport,
+            language: input.language,
             target: input.target,
             observedIp: input.observedIp,
             ports: input.ports,
             tcpPorts: input.tcpPorts,
             udpPorts: input.udpPorts,
-            progress: this.buildInitialProgress(totalPorts, input.tcpPorts.length, input.udpPorts.length, input.transport),
+            progress: this.buildInitialProgress(totalPorts, input.tcpPorts.length, input.udpPorts.length, input.transport, input.language),
             createdAt: new Date().toISOString(),
         }
         this.jobs.set(id, job)
@@ -80,7 +102,9 @@ export class JobStore {
             const initialPhase = job.transport === 'udp' ? 'udp_sweep' : 'tcp_sweep'
             job.phase = initialPhase
             job.progress.phase = initialPhase
-            job.progress.message = initialPhase === 'udp_sweep' ? 'Escaneo UDP en progreso' : 'Escaneo TCP en progreso'
+            job.progress.message = initialPhase === 'udp_sweep'
+                ? this.progressMessage(job.language, 'udp')
+                : this.progressMessage(job.language, 'tcp')
             job.progress.updatedAt = new Date().toISOString()
             job.progress.percent = Math.max(job.progress.percent, 1)
         }
@@ -107,7 +131,8 @@ export class JobStore {
         job.result = result
         job.progress = {
             phase: 'done',
-            message: 'Escaneo completado',
+            message: this.progressMessage(job.language, 'done'),
+            language: result.language || job.language,
             transport: result.transport,
             totalPorts: result.tcpPorts.length + result.udpPorts.length,
             scannedPorts: result.tcpPorts.length + result.udpPorts.length,

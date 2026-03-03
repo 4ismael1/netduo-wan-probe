@@ -86,9 +86,10 @@ Edit `.env`:
 6. `PROBE_SCAN_TRANSPORT_DEFAULT` (`tcp`, `udp`, `both`, `auto`; default `tcp`)
 7. `PROBE_ENABLE_UDP_SCAN` (default `true`)
 8. `PROBE_PROFILE_DEFAULT` (`balanced` default)
-9. `PROBE_ALLOWED_PORTS` (optional allowlist)
-10. `PROBE_ENFORCE_ALLOWED_PORTS` (default `false`)
-11. `PROBE_NODE_*` overrides (optional manual node metadata)
+9. `PROBE_DEFAULT_LANGUAGE` (`en` default, `es` optional)
+10. `PROBE_ALLOWED_PORTS` (optional allowlist)
+11. `PROBE_ENFORCE_ALLOWED_PORTS` (default `false`)
+12. `PROBE_NODE_*` overrides (optional manual node metadata)
 
 ## API
 
@@ -124,11 +125,12 @@ The service exposes:
 2. `apiVersion`: semantic API contract version (`vX.Y.Z`).
 3. `apiRevision`: compatibility alias (same value as `apiVersion`).
 4. `capabilities.transport`: runtime transport support (`tcp`, `udp`, `both`, `auto`, `default`).
+5. `capabilities.localization`: supported languages and default runtime language.
 
 Current API contract:
 
-1. `apiVersion = v1.1.0`
-2. `apiRevision = v1.1.0`
+1. `apiVersion = v1.3.0`
+2. `apiRevision = v1.3.0`
 
 ## API Examples
 
@@ -156,7 +158,7 @@ Start quick TCP scan:
 curl -X POST http://127.0.0.1:9443/scan/start \
   -H "Authorization: Bearer YOUR_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"mode":"quick","profile":"balanced","transport":"tcp","target":"auto"}'
+  -d '{"mode":"quick","profile":"balanced","transport":"tcp","language":"en","target":"auto"}'
 ```
 
 Start advanced TCP+UDP scan:
@@ -165,7 +167,7 @@ Start advanced TCP+UDP scan:
 curl -X POST http://127.0.0.1:9443/scan/start \
   -H "Authorization: Bearer YOUR_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"mode":"advanced","profile":"balanced","transport":"both","ports":[22,80,443,3389],"udpPorts":[53,123,161,1900]}'
+  -d '{"mode":"advanced","profile":"balanced","transport":"both","language":"es","ports":[22,80,443,3389],"udpPorts":[53,123,161,1900]}'
 ```
 
 Read job:

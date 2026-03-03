@@ -2,6 +2,7 @@ export type ScanMode = 'quick' | 'advanced' | 'deep'
 export type ScanProfile = 'safe' | 'balanced' | 'aggressive'
 export type ScanTransport = 'tcp' | 'udp' | 'both' | 'auto'
 export type ScanProtocol = 'tcp' | 'udp'
+export type ProbeLanguage = 'en' | 'es'
 
 export type ScanPhase =
     | 'queued'
@@ -84,6 +85,7 @@ export interface WanScanResult {
     mode: ScanMode
     profile: ScanProfile
     transport: ScanTransport
+    language: ProbeLanguage
     target: string
     observedIp: string
     startedAt: string
@@ -129,6 +131,7 @@ export interface WanScanResult {
 export interface ScanProgress {
     phase: ScanPhase
     message: string
+    language?: ProbeLanguage
     transport: ScanTransport
     totalPorts: number
     scannedPorts: number
@@ -169,6 +172,7 @@ export interface ScanJob {
     mode: ScanMode
     profile: ScanProfile
     transport: ScanTransport
+    language: ProbeLanguage
     target: string
     observedIp: string
     ports: number[]

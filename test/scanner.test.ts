@@ -56,6 +56,7 @@ function baseCfg(): ProbeConfig {
         enableHttpProbe: false,
         enableTlsProbe: false,
         enableBannerProbe: false,
+        defaultLanguage: 'en',
         nodeId: null,
         nodeLabel: null,
         nodeProvider: null,

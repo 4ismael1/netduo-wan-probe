@@ -1,0 +1,16 @@
+services:
+  netduo-wan-probe:
+    container_name: netduo-wan-probe
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${PROBE_PORT:-9443}:${PROBE_PORT:-9443}"
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "-", "http://127.0.0.1:${PROBE_PORT:-9443}/health"]
+      interval: 20s
+      timeout: 4s
+      retries: 5

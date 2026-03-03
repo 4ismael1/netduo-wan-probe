@@ -1,0 +1,32 @@
+{
+  "name": "netduo-wan-probe",
+  "version": "1.1.0",
+  "description": "Self-hosted WAN exposure probe service for NetDuo",
+  "private": true,
+  "main": "dist/index.js",
+  "scripts": {
+    "setup:auto": "node scripts/bootstrap.mjs",
+    "start:server": "tsx src/pterodactyl-start.ts",
+    "start:pterodactyl": "tsx src/pterodactyl-start.ts",
+    "start": "node scripts/start-auto.mjs",
+    "dev": "npm run setup:auto && tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test": "tsx --test test/**/*.test.ts",
+    "start:dist": "node dist/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.2",
+    "@fastify/rate-limit": "^10.3.0",
+    "dotenv": "^16.4.5",
+    "fastify": "^5.0.0",
+    "tsx": "^4.19.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "typescript": "^5.6.3"
+  }
+}
